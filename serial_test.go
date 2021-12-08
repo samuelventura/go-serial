@@ -30,15 +30,15 @@ func testSerialEof(t *testing.T, n string) {
 	iferr(t, err)
 	err = port.SetReadTimeout(100)
 	if err != io.EOF {
-		t.Fatalf("SetReadTimeout EOF not detected %v", err)
+		t.Fatalf("setReadTimeout EOF not detected %v", err)
 	}
 	_, err = port.Read([]byte{0})
 	if err != io.EOF {
-		t.Fatalf("Read EOF not detected %v", err)
+		t.Fatalf("read EOF not detected %v", err)
 	}
 	_, err = port.Write([]byte{0})
 	if err != io.EOF {
-		t.Fatalf("Write EOF not detected %v", err)
+		t.Fatalf("write EOF not detected %v", err)
 	}
 }
 
@@ -55,7 +55,7 @@ func TestSerialTransport(t *testing.T) {
 }
 
 func testSerialTrans(t *testing.T, n string, m string, proto modbus.Protocol) {
-	log.Println("Protocol", reflect.TypeOf(proto))
+	log.Println("protocol", reflect.TypeOf(proto))
 	port1 := open(t, n)
 	port2 := open(t, m)
 	done := make(chan bool)
@@ -70,13 +70,14 @@ func testSerialTrans(t *testing.T, n string, m string, proto modbus.Protocol) {
 	trans2 := modbus.NewIoTransport(reader2, port2)
 	trans1.SetError(true)
 	trans2.SetError(true)
-	trans1.Discard(100)
-	trans2.Discard(100)
+	trans1.Discard()
+	trans2.Discard()
 	model := modbus.NewMapModel()
+	exec := modbus.NewModelExecutor(model)
 	master := modbus.NewMaster(proto, trans1, 400)
 	go func() {
 		defer func() { done <- true }()
-		runSlave(proto, trans2, model, 100)
+		runSlave(proto, trans2, exec)
 	}()
 	testModelMaster(t, model, master)
 }
@@ -125,8 +126,8 @@ func testModelMaster(t *testing.T, model modbus.Model, master modbus.CloseableMa
 	}
 
 	err = master.WriteDo(0xFF, 0xFFFF, false)
-	if !strings.HasPrefix(err.Error(), fmt.Sprintf("ModbusException %02x", ^modbus.WriteDo05)) {
-		t.Fatalf("Exception expected: %s", err.Error())
+	if !strings.HasPrefix(err.Error(), fmt.Sprintf("modbusException %02x", ^modbus.WriteDo05)) {
+		t.Fatalf("exception expected: %s", err.Error())
 	}
 	max := 0x10001
 	start := time.Now().UnixNano()
@@ -136,7 +137,7 @@ func testModelMaster(t *testing.T, model modbus.Model, master modbus.CloseableMa
 	end := time.Now().UnixNano()
 	totals := float64(end-start) / 1000000000.0
 	unitms := float64(end-start) / float64(max) / 1000000.0
-	log.Printf("Timed %fs %fms %d\n", totals, unitms, max)
+	log.Printf("timed %fs %fms %d\n", totals, unitms, max)
 	for ss := 0; ss < 0x1FF; ss += 50 {
 		for aa := 0; aa < 0x1FFFF; aa += 10000 {
 			s := byte(ss)
@@ -308,11 +309,11 @@ func testWords(t *testing.T, model modbus.Model, master modbus.Master, s byte, a
 
 //SLAVE////////////////////////////
 
-func runSlave(proto modbus.Protocol, trans modbus.Transport, exec modbus.Executor, toms int) {
+func runSlave(proto modbus.Protocol, trans modbus.Transport, exec modbus.Executor) {
 	for {
-		err := oneSlave(proto, trans, exec, toms)
+		err := oneSlave(proto, trans, exec)
 		if err != nil {
-			trace("oneSlave.error", toms, err)
+			trace("oneSlave.error", err)
 		}
 		if err == io.EOF {
 			return
@@ -320,15 +321,15 @@ func runSlave(proto modbus.Protocol, trans modbus.Transport, exec modbus.Executo
 	}
 }
 
-func oneSlave(proto modbus.Protocol, trans modbus.Transport, exec modbus.Executor, toms int) (err error) {
+func oneSlave(proto modbus.Protocol, trans modbus.Transport, exec modbus.Executor) (err error) {
 	//report error to transport
 	//to discard on next interaction
 	defer func() {
 		trans.SetError(err != nil)
 	}()
-	trans.Discard(toms)
+	trans.Discard()
 	for {
-		ci, err := proto.Scan(trans, toms)
+		ci, err := proto.Scan(trans)
 		if err != nil {
 			return err
 		}
@@ -341,7 +342,7 @@ func oneSlave(proto modbus.Protocol, trans modbus.Transport, exec modbus.Executo
 			trans.Write(fbuf)
 			continue
 		}
-		_, buf, err := modbus.ApplyToExecutor(ci, proto, exec)
+		_, buf, err := applyToExecutor(ci, proto, exec)
 		if err != nil {
 			return err
 		}
@@ -350,9 +351,27 @@ func oneSlave(proto modbus.Protocol, trans modbus.Transport, exec modbus.Executo
 			return err
 		}
 		if c != len(buf) {
-			return formatErr("Partial write %d of %d", c, len(buf))
+			return formatErr("partial write %d of %d", c, len(buf))
 		}
 	}
+}
+
+func applyToExecutor(ci *modbus.Command, p modbus.Protocol, e modbus.Executor) (co *modbus.Command, fbuf []byte, err error) {
+	trace("e>", ci)
+	err = ci.CheckValid()
+	if err != nil {
+		return
+	}
+	co, err = e.Execute(ci)
+	if err != nil {
+		return
+	}
+	trace("e<", co)
+	reslen := ci.ResponseLength()
+	fbuf, buf := p.MakeBuffers(reslen)
+	co.EncodeResponse(buf)
+	p.WrapBuffer(fbuf, reslen)
+	return
 }
 
 //ASSERT////////////////////////////
@@ -362,7 +381,7 @@ func assertBoolEqualErr(t *testing.T, err error, a, b bool) {
 		t.Fatal(err)
 	}
 	if a != b {
-		t.Fatalf("Val mismatch %t %t", a, b)
+		t.Fatalf("val mismatch %t %t", a, b)
 	}
 }
 
@@ -375,11 +394,11 @@ func assertBoolsEqualErr(t *testing.T, err error, a, b []bool) {
 
 func assertBoolsEqual(t *testing.T, a, b []bool) {
 	if len(a) != len(b) {
-		t.Fatalf("Len mismatch %d %d", len(a), len(b))
+		t.Fatalf("len mismatch %d %d", len(a), len(b))
 	}
 	for i, v := range a {
 		if v != b[i] {
-			t.Fatalf("Val mismatch at %d %t %t", i, v, b[i])
+			t.Fatalf("val mismatch at %d %t %t", i, v, b[i])
 		}
 	}
 }
@@ -389,7 +408,7 @@ func assertWordEqualErr(t *testing.T, err error, a, b uint16) {
 		t.Fatal(err)
 	}
 	if a != b {
-		t.Fatalf("Val mismatch %04x %04x", a, b)
+		t.Fatalf("val mismatch %04x %04x", a, b)
 	}
 }
 
@@ -402,11 +421,11 @@ func assertWordsEqualErr(t *testing.T, err error, a, b []uint16) {
 
 func assertWordsEqual(t *testing.T, a, b []uint16) {
 	if len(a) != len(b) {
-		t.Fatalf("Len mismatch %d %d", len(a), len(b))
+		t.Fatalf("len mismatch %d %d", len(a), len(b))
 	}
 	for i, v := range a {
 		if v != b[i] {
-			t.Fatalf("Val mismatch at %d %04x %04x", i, v, b[i])
+			t.Fatalf("val mismatch at %d %04x %04x", i, v, b[i])
 		}
 	}
 }

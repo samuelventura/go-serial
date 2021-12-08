@@ -1,4 +1,4 @@
-github.com/samuelventura/go-modbus v0.1.0 h1:WXMVziIzRZquFv8fXzVmcEpJ/TzZAEiDd+SD+MUAzno=
-github.com/samuelventura/go-modbus v0.1.0/go.mod h1:FPhk2Ww1SN5jagcP27DcYTZy+15goPh1H8IXKdvT5X4=
+github.com/samuelventura/go-modbus v0.1.1-0.20211208000134-29b2f7accb08 h1:Mykx70rgahG0bapXh3QB/p3TKjaWbTgcG/CRwcqM1Pw=
+github.com/samuelventura/go-modbus v0.1.1-0.20211208000134-29b2f7accb08/go.mod h1:FPhk2Ww1SN5jagcP27DcYTZy+15goPh1H8IXKdvT5X4=
 golang.org/x/sys v0.0.0-20211205182925-97ca703d548d h1:FjkYO/PPp4Wi0EAUOVLxePm7qVW4r4ctbWpURyuOD0E=
 golang.org/x/sys v0.0.0-20211205182925-97ca703d548d/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=

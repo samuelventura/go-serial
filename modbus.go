@@ -10,9 +10,9 @@ type portTimedReader struct {
 	port Port
 }
 
-func (to portTimedReader) TimedRead(buf []byte, toms int) (c int, err error) {
+func (to portTimedReader) TimedRead(buf []byte) (c int, err error) {
 	c = 0
-	to.port.SetReadTimeout(toms)
+	to.port.SetReadTimeout(modbus.ReadToMs)
 	if err != nil {
 		return
 	}

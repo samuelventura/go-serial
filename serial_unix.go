@@ -13,8 +13,8 @@ import (
 )
 
 type portDto struct {
-	//mu     sync.Mutex
-	handle int
+	settings *unix.Termios
+	handle   int
 }
 
 func GetPortsList() (ports []string, err error) {
@@ -122,6 +122,7 @@ func Open(portName string, mode *Mode) (port *portDto, err error) {
 	settings.Cc[unix.VMIN] = 1
 	settings.Cc[unix.VTIME] = 0
 
+	port.settings = settings
 	err = setTermSettings(port, settings)
 	if err != nil {
 		return
@@ -148,16 +149,10 @@ func (port *portDto) SetReadTimeout(toms int) (err error) {
 		}
 	}
 
-	settings, err := getTermSettings(port)
-	err = tryConvertToEof(err)
-	if err != nil {
-		return
-	}
+	port.settings.Cc[unix.VMIN] = vmin
+	port.settings.Cc[unix.VTIME] = vtime
 
-	settings.Cc[unix.VMIN] = vmin
-	settings.Cc[unix.VTIME] = vtime
-
-	err = setTermSettings(port, settings)
+	err = setTermSettings(port, port.settings)
 	err = tryConvertToEof(err)
 	return
 }
