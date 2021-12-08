@@ -14,6 +14,7 @@ import (
 
 type portDto struct {
 	settings *unix.Termios
+	name     string
 	handle   int
 }
 
@@ -59,18 +60,16 @@ func Open(portName string, mode *Mode) (port *portDto, err error) {
 
 	port = &portDto{
 		handle: h,
+		name:   portName,
 	}
 
+	// prevent handle leaks
 	defer func() {
 		if err != nil {
 			port.Close()
+			port.handle = 0
 		}
 	}()
-
-	err = setMode(port, mode)
-	if err != nil {
-		return
-	}
 
 	err = unix.SetNonblock(h, false)
 	if err != nil {
@@ -78,6 +77,24 @@ func Open(portName string, mode *Mode) (port *portDto, err error) {
 	}
 
 	settings, err := getTermSettings(port)
+	if err != nil {
+		return
+	}
+	port.settings = settings
+
+	err = setTermSettingsBaudrate(mode.BaudRate, settings)
+	if err != nil {
+		return
+	}
+	err = setTermSettingsParity(mode.Parity, settings)
+	if err != nil {
+		return
+	}
+	err = setTermSettingsDataBits(mode.DataBits, settings)
+	if err != nil {
+		return
+	}
+	err = setTermSettingsStopBits(mode.StopBits, settings)
 	if err != nil {
 		return
 	}
@@ -122,7 +139,6 @@ func Open(portName string, mode *Mode) (port *portDto, err error) {
 	settings.Cc[unix.VMIN] = 1
 	settings.Cc[unix.VTIME] = 0
 
-	port.settings = settings
 	err = setTermSettings(port, settings)
 	if err != nil {
 		return
@@ -192,30 +208,6 @@ func tryConvertToEof(in error) (out error) {
 		}
 	}
 	return
-}
-
-func setMode(port *portDto, mode *Mode) (err error) {
-	settings, err := getTermSettings(port)
-	if err != nil {
-		return
-	}
-	err = setTermSettingsBaudrate(mode.BaudRate, settings)
-	if err != nil {
-		return
-	}
-	err = setTermSettingsParity(mode.Parity, settings)
-	if err != nil {
-		return
-	}
-	err = setTermSettingsDataBits(mode.DataBits, settings)
-	if err != nil {
-		return
-	}
-	err = setTermSettingsStopBits(mode.StopBits, settings)
-	if err != nil {
-		return
-	}
-	return setTermSettings(port, settings)
 }
 
 func setTermSettingsBaudrate(speed int, settings *unix.Termios) (err error) {

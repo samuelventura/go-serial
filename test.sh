@@ -8,8 +8,8 @@ esac
 
 if [[ "$SOCATTTY" == "true" ]]; then
     socat -d -d \
-    pty,raw,nonblock,echo=0,iexten=0,link=/tmp/tty.fake.slave \
-    pty,raw,nonblock,echo=0,iexten=0,link=/tmp/tty.fake.master &
+    pty,link=/tmp/tty.slave \
+    pty,link=/tmp/tty.master &
 
     SOCATPID=$!
 
