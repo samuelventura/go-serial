@@ -20,7 +20,7 @@ func TestSerialFound(t *testing.T) {
 	defer logPanic()
 	log.SetFlags(log.Lmicroseconds)
 	ports, err := GetPortsList()
-	iferr(t, err)
+	fatalIfError(t, err)
 	sort.Strings(ports)
 	np := len(ports)
 	log.Println(np, ports)
